@@ -27,17 +27,22 @@ PRIVATE void put_key(TTY* p_tty, u32 key);
 /*======================================================================*
                            task_tty
  *======================================================================*/
+// 这就是进程体。
 PUBLIC void task_tty()
 {
 	TTY*	p_tty;
 
 	init_keyboard();
-
+	// 初始化所有终端：1.缓存；2.CONSOLE。
 	for (p_tty=TTY_FIRST;p_tty<TTY_END;p_tty++) {
 		init_tty(p_tty);
 	}
+	// 第0个TTY是当前终端。
 	select_console(0);
 	while (1) {
+		// 和A的进程体一样，最外层也是一个循环。
+		// 每个TTY轮流运行：从键盘缓冲区读取数据到TTY的缓冲区--->从TTY的缓冲区读取数据写入显存。
+		// 键盘缓冲区的数据是的数据是当前TTY的数据，所以，只有当前TTY才从键盘缓冲区读取数据。
 		for (p_tty=TTY_FIRST;p_tty<TTY_END;p_tty++) {
 			tty_do_read(p_tty);
 			tty_do_write(p_tty);
@@ -50,9 +55,10 @@ PUBLIC void task_tty()
  *======================================================================*/
 PRIVATE void init_tty(TTY* p_tty)
 {
+	// 初始化缓冲区
 	p_tty->inbuf_count = 0;
 	p_tty->p_inbuf_head = p_tty->p_inbuf_tail = p_tty->in_buf;
-
+	// 初始化TTY的console。
 	init_screen(p_tty);
 }
 
@@ -61,25 +67,31 @@ PRIVATE void init_tty(TTY* p_tty)
  *======================================================================*/
 PUBLIC void in_process(TTY* p_tty, u32 key)
 {
+        // 也可以使用Memeset(output, 0, 2)
         char output[2] = {'\0', '\0'};
 
         if (!(key & FLAG_EXT)) {
+    	// 把字符放入TTY的缓冲区
 		put_key(p_tty, key);
         }
         else {
                 int raw_code = key & MASK_RAW;
                 switch(raw_code) {
+            	// 换行符
                 case ENTER:
 			put_key(p_tty, '\n');
 			break;
+				// 退格符
                 case BACKSPACE:
 			put_key(p_tty, '\b');
 			break;
+				// 向上滚屏
                 case UP:
                         if ((key & FLAG_SHIFT_L) || (key & FLAG_SHIFT_R)) {
 				scroll_screen(p_tty->p_console, SCR_DN);
                         }
 			break;
+		// 向下滚屏
 		case DOWN:
 			if ((key & FLAG_SHIFT_L) || (key & FLAG_SHIFT_R)) {
 				scroll_screen(p_tty->p_console, SCR_UP);
@@ -111,6 +123,7 @@ PUBLIC void in_process(TTY* p_tty, u32 key)
 /*======================================================================*
 			      put_key
 *======================================================================*/
+// 逻辑和放入字符到键盘缓冲区一致。
 PRIVATE void put_key(TTY* p_tty, u32 key)
 {
 	if (p_tty->inbuf_count < TTY_IN_BYTES) {
